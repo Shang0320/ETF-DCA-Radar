@@ -1,0 +1,9 @@
+{
+  "name":"ETF 不定期定額觀察器",
+  "short_name":"ETF雷達",
+  "start_url":"./index.html",
+  "display":"standalone",
+  "background_color":"#f3f4f6",
+  "theme_color":"#111827",
+  "lang":"zh-Hant"
+}

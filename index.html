@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<title>ETF 不定期定額觀察器</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f4f6;color:#111827;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC",sans-serif}
+header{background:#111827;color:white;padding:18px 16px 14px;position:sticky;top:0;z-index:5}
+h1{font-size:21px;margin:0 0 4px}.sub{font-size:12px;color:#cbd5e1}
+main{padding:14px 14px 90px;max-width:720px;margin:auto}
+.card{background:white;border-radius:16px;padding:15px;margin-bottom:12px;box-shadow:0 2px 10px #0000000d}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.metric{background:#f8fafc;border-radius:12px;padding:12px}.label{font-size:12px;color:#64748b}.value{font-size:20px;font-weight:750;margin-top:4px}
+.progress{height:9px;background:#e5e7eb;border-radius:99px;overflow:hidden}.bar{height:100%;background:#111827;width:0}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:10px 5px;border-bottom:1px solid #e5e7eb;text-align:left}th{color:#64748b;font-weight:600}
+.signal{font-weight:800}.white{color:#64748b}.green{color:#15803d}.yellow{color:#a16207}.blue{color:#2563eb}.red{color:#dc2626}
+button{border:0;border-radius:11px;padding:10px 13px;font-weight:700;background:#111827;color:white}button.secondary{background:#e5e7eb;color:#111827}
+.row{display:flex;gap:8px;align-items:center;justify-content:space-between}.muted{font-size:12px;color:#64748b}
+input{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:10px;font-size:15px}
+.tabs{position:fixed;bottom:0;left:0;right:0;background:white;border-top:1px solid #e5e7eb;display:flex;justify-content:center;z-index:9}.tabs button{background:white;color:#475569;border-radius:0;padding:13px 18px;font-size:12px}.tabs button.active{color:#111827;font-weight:800}
+.hidden{display:none}.pill{padding:4px 8px;border-radius:99px;background:#f1f5f9;font-size:11px}.note{background:#fff7ed;padding:11px;border-radius:11px;font-size:12px;color:#9a3412}
+</style>
+</head>
+<body>
+<header><h1>📊 ETF 不定期定額觀察器</h1><div class="sub">跌得多 → 買得多；沒機會 → 留現金</div></header>
+
+<main id="app"></main>
+
+<nav class="tabs">
+<button onclick="show('radar')" id="t-radar">📡 雷達</button>
+<button onclick="show('money')" id="t-money">💰 資金</button>
+<button onclick="show('settings')" id="t-settings">⚙️ 設定</button>
+</nav>
+
+<script>
+const defaults=[
+ {code:"0050",name:"元大台灣50",price:112.80,high:112.80,role:"核心",freq:"半年配",shares:160},
+ {code:"00403A",name:"主動統一升級50",price:11.07,high:11.07,role:"核心成長",freq:"季配機制",shares:1000},
+ {code:"00646",name:"元大S&P500",price:77.25,high:77.25,role:"海外核心",freq:"不列配息",shares:40},
+ {code:"00406A",name:"主動中信台灣收益",price:10.13,high:10.13,role:"月配主力",freq:"月配",shares:0},
+ {code:"00919",name:"群益台灣精選高息",price:31.55,high:31.55,role:"季配",freq:"季配",shares:162},
+ {code:"00935",name:"野村台灣新科技50",price:61.55,high:61.55,role:"科技衛星",freq:"半年配",shares:0}
+];
+let state=JSON.parse(localStorage.getItem("etfPwaState")||"null")||{budget:10000,cash:0,target:36000,etfs:defaults};
+function save(){localStorage.setItem("etfPwaState",JSON.stringify(state))}
+function money(n){return new Intl.NumberFormat("zh-TW",{maximumFractionDigits:0}).format(n)}
+function drawdown(e){return e.high?((e.price/e.high)-1)*100:0}
+function signal(dd){
+ if(dd<=-15)return ["🔴","red","啟動預備金",.20];
+ if(dd<=-10)return ["🔵","blue","大幅加碼",.30];
+ if(dd<=-5)return ["🟡","yellow","加碼",.30];
+ if(dd<=-3)return ["🟢","green","小買",.20];
+ return ["⚪","white","不追",0];
+}
+function radar(){
+ let investable=state.budget+state.cash;
+ let rows=state.etfs.map(e=>{
+  let dd=drawdown(e),s=signal(dd);
+  return `<tr><td><b>${e.code}</b><br><span class="muted">${e.name}</span></td>
+  <td>${e.price.toFixed(2)}</td><td>${dd.toFixed(1)}%</td>
+  <td class="signal ${s[1]}">${s[0]} ${s[2]}</td>
+  <td>${s[3]?money(investable*s[3]):"—"}</td></tr>`}).join("");
+ document.getElementById("app").innerHTML=`
+ <section class="card"><div class="grid">
+  <div class="metric"><div class="label">本月預算</div><div class="value">$${money(state.budget)}</div></div>
+  <div class="metric"><div class="label">累積現金</div><div class="value">$${money(state.cash)}</div></div>
+ </div></section>
+ <section class="card"><div class="row"><b>📡 今日 ETF 雷達</b><span class="pill">手動價格版</span></div>
+ <table><thead><tr><th>ETF</th><th>現價</th><th>回撤</th><th>訊號</th><th>建議額</th></tr></thead><tbody>${rows}</tbody></table>
+ <div class="note" style="margin-top:12px">⚠️ 第一版價格為你目前提供／設定的基準價；要做即時行情，下一版再接行情來源。訊號是規則提示，不是自動下單。</div></section>
+ <section class="card"><b>🧭 操作規則</b><p class="muted">0～-3%：不追　｜　-3～-5%：小買　｜　-5～-10%：加碼　｜　-10～-15%：大幅加碼　｜　≤-15%：啟動預備金</p></section>`;
+}
+function moneyPage(){
+ let total=state.etfs.reduce((a,e)=>a+e.price*e.shares,0);
+ let progress=Math.min(100,total/500000*100);
+ document.getElementById("app").innerHTML=`
+ <section class="card"><b>💰 資金管理</b><div class="grid" style="margin-top:10px">
+ <div class="metric"><div class="label">每月可投入</div><div class="value">$${money(state.budget)}</div></div>
+ <div class="metric"><div class="label">目前 ETF 市值（估算）</div><div class="value">$${money(total)}</div></div>
+ </div></section>
+ <section class="card"><div class="row"><b>🎯 50萬現金流資產里程碑</b><b>${progress.toFixed(1)}%</b></div><div class="progress" style="margin-top:9px"><div class="bar" style="width:${progress}%"></div></div>
+ <p class="muted">目標：先建立約50萬元收益型資產，再觀察全年配息是否能達到約36,000元。</p></section>
+ <section class="card"><b>💵 月配3,000元目標</b><div class="metric" style="margin-top:10px"><div class="label">全年現金流目標</div><div class="value">$${money(state.target)}</div></div>
+ <p class="muted">配息會變動；36,000元是目標值，不是保證收入。</p></section>`;
+}
+function settings(){
+ let inputs=state.etfs.map((e,i)=>`<div class="card"><b>${e.code} ${e.name}</b><div class="grid" style="margin-top:9px">
+ <label class="muted">現價<input value="${e.price}" onchange="upd(${i},'price',this.value)"></label>
+ <label class="muted">近期高點<input value="${e.high}" onchange="upd(${i},'high',this.value)"></label>
+ <label class="muted">持股<input value="${e.shares}" onchange="upd(${i},'shares',this.value)"></label>
+ </div></div>`).join("");
+ document.getElementById("app").innerHTML=`<section class="card"><b>⚙️ 設定</b><div class="grid" style="margin-top:10px">
+ <label class="muted">每月預算<input value="${state.budget}" onchange="state.budget=+this.value;save();settings()"></label>
+ <label class="muted">全年現金流目標<input value="${state.target}" onchange="state.target=+this.value;save();settings()"></label>
+ </div></section>${inputs}`;
+}
+function upd(i,k,v){state.etfs[i][k]=+v;save();settings()}
+function show(x){
+ document.querySelectorAll(".tabs button").forEach(b=>b.classList.remove("active"));
+ document.getElementById("t-"+x).classList.add("active");
+ x==="radar"?radar():x==="money"?moneyPage():settings()
+}
+show("radar");
+if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
+</script>
+</body></html>
