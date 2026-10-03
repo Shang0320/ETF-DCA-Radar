@@ -25,7 +25,7 @@ input{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:10px;font-s
 </style>
 </head>
 <body>
-<header><h1>📊 ETF 不定期定額觀察器</h1><div class="sub">跌得多 → 買得多；沒機會 → 留現金</div></header>
+<header><h1>📊 ETF 不定期定額觀察器 <span style="font-size:11px;color:#64748b">v2.1</span></h1><div class="sub">跌得多 → 買得多；沒機會 → 留現金</div></header>
 
 <main id="app"></main>
 
@@ -145,6 +145,10 @@ function show(x){page=x;
 }
 show("radar");
 refreshAll();
-if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
+if('serviceWorker' in navigator){
+ let refreshing=false;
+ navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!refreshing){refreshing=true;location.reload()}});
+ navigator.serviceWorker.register('./sw.js').then(r=>r.update()).catch(()=>{});
+}
 </script>
 </body></html>
