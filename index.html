@@ -19,7 +19,9 @@ button{border:0;border-radius:11px;padding:10px 13px;font-weight:700;background:
 .row{display:flex;gap:8px;align-items:center;justify-content:space-between}.muted{font-size:12px;color:#64748b}
 input{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:10px;font-size:15px}
 .tabs{position:fixed;bottom:0;left:0;right:0;background:white;border-top:1px solid #e5e7eb;display:flex;justify-content:center;z-index:9}.tabs button{background:white;color:#475569;border-radius:0;padding:13px 18px;font-size:12px}.tabs button.active{color:#111827;font-weight:800}
-.hidden{display:none}.pill{padding:4px 8px;border-radius:99px;background:#f1f5f9;font-size:11px}.note{background:#fff7ed;padding:11px;border-radius:11px;font-size:12px;color:#9a3412}
+.hidden{display:none}.pill{padding:4px 8px;border-radius:99px;background:#f1f5f9;font-size:11px}.pill.live{background:#dcfce7;color:#15803d}.pill.manual{background:#fef3c7;color:#a16207}
+.note{background:#fff7ed;padding:11px;border-radius:11px;font-size:12px;color:#9a3412}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid #cbd5e1;border-top-color:#111827;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}@keyframes sp{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -42,7 +44,9 @@ const defaults=[
  {code:"00919",name:"群益台灣精選高息",price:31.55,high:31.55,role:"季配",freq:"季配",shares:162},
  {code:"00935",name:"野村台灣新科技50",price:61.55,high:61.55,role:"科技衛星",freq:"半年配",shares:0}
 ];
-let state=JSON.parse(localStorage.getItem("etfPwaState")||"null")||{budget:10000,cash:0,target:36000,etfs:defaults};
+let state=JSON.parse(localStorage.getItem("etfPwaState")||"null")||{budget:10000,cash:0,target:36000,token:"",lookback:60,etfs:defaults};
+state.etfs.forEach(e=>{if(!e.src)e.src="manual"});
+let loading=false,page="radar";
 function save(){localStorage.setItem("etfPwaState",JSON.stringify(state))}
 function money(n){return new Intl.NumberFormat("zh-TW",{maximumFractionDigits:0}).format(n)}
 function drawdown(e){return e.high?((e.price/e.high)-1)*100:0}
@@ -53,11 +57,41 @@ function signal(dd){
  if(dd<=-3)return ["🟢","green","小買",.20];
  return ["⚪","white","不追",0];
 }
+// ---- FinMind 行情 API（台灣股市，支援 CORS）----
+async function fetchQuote(e){
+ const d=new Date();d.setDate(d.getDate()-Math.ceil(state.lookback*1.6));
+ const sd=d.toISOString().slice(0,10);
+ const url=`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${encodeURIComponent(e.code)}&start_date=${sd}&token=${encodeURIComponent(state.token||"")}`;
+ const r=await fetch(url);
+ if(!r.ok)throw new Error("HTTP "+r.status);
+ const j=await r.json();
+ const rows=(j.data||[]).filter(x=>x.close>0);
+ if(!rows.length)throw new Error("無資料");
+ const last=rows[rows.length-1];
+ e.price=last.close;
+ e.high=Math.max(...rows.map(x=>Math.max(x.max,x.close)));
+ e.priceDate=last.date;
+ e.src="live";
+}
+async function refreshAll(){
+ if(loading)return;loading=true;render();
+ for(const e of state.etfs){
+  try{await fetchQuote(e)}catch(err){e.src="manual";e.err=String(err.message||err)}
+  render();
+ }
+ state.lastUpdate=new Date().toLocaleString("zh-TW",{hour12:false});
+ save();loading=false;render();
+}
+function srcBadge(e){
+ return e.src==="live"
+  ?`<span class="pill live">📶 ${e.priceDate||""}</span>`
+  :`<span class="pill manual">✋ 手動</span>`;
+}
 function radar(){
  let investable=state.budget+state.cash;
  let rows=state.etfs.map(e=>{
   let dd=drawdown(e),s=signal(dd);
-  return `<tr><td><b>${e.code}</b><br><span class="muted">${e.name}</span></td>
+  return `<tr><td><b>${e.code}</b> ${srcBadge(e)}<br><span class="muted">${e.name}</span></td>
   <td>${e.price.toFixed(2)}</td><td>${dd.toFixed(1)}%</td>
   <td class="signal ${s[1]}">${s[0]} ${s[2]}</td>
   <td>${s[3]?money(investable*s[3]):"—"}</td></tr>`}).join("");
@@ -66,9 +100,11 @@ function radar(){
   <div class="metric"><div class="label">本月預算</div><div class="value">$${money(state.budget)}</div></div>
   <div class="metric"><div class="label">累積現金</div><div class="value">$${money(state.cash)}</div></div>
  </div></section>
- <section class="card"><div class="row"><b>📡 今日 ETF 雷達</b><span class="pill">手動價格版</span></div>
+ <section class="card"><div class="row"><b>📡 今日 ETF 雷達</b>
+  <button onclick="refreshAll()">${loading?'<span class="spin"></span> 更新中':'🔄 更新行情'}</button></div>
+ <div class="muted" style="margin:6px 0">資料來源：FinMind（台灣股市收盤價）${state.lastUpdate?`｜上次更新：${state.lastUpdate}`:""}</div>
  <table><thead><tr><th>ETF</th><th>現價</th><th>回撤</th><th>訊號</th><th>建議額</th></tr></thead><tbody>${rows}</tbody></table>
- <div class="note" style="margin-top:12px">⚠️ 第一版價格為你目前提供／設定的基準價；要做即時行情，下一版再接行情來源。訊號是規則提示，不是自動下單。</div></section>
+ <div class="note" style="margin-top:12px">⚠️ 行情為最近收盤價，非盤中即時；回撤高點取近 ${state.lookback} 個交易日。訊號是規則提示，不是自動下單。顯示「✋ 手動」者請到設定頁自行輸入價格。</div></section>
  <section class="card"><b>🧭 操作規則</b><p class="muted">0～-3%：不追　｜　-3～-5%：小買　｜　-5～-10%：加碼　｜　-10～-15%：大幅加碼　｜　≤-15%：啟動預備金</p></section>`;
 }
 function moneyPage(){
@@ -85,7 +121,9 @@ function moneyPage(){
  <p class="muted">配息會變動；36,000元是目標值，不是保證收入。</p></section>`;
 }
 function settings(){
- let inputs=state.etfs.map((e,i)=>`<div class="card"><b>${e.code} ${e.name}</b><div class="grid" style="margin-top:9px">
+ let inputs=state.etfs.map((e,i)=>`<div class="card"><div class="row"><b>${e.code} ${e.name}</b>${srcBadge(e)}</div>
+ ${e.err?`<div class="note" style="margin-top:6px">行情抓取失敗：${e.err}</div>`:""}
+ <div class="grid" style="margin-top:9px">
  <label class="muted">現價<input value="${e.price}" onchange="upd(${i},'price',this.value)"></label>
  <label class="muted">近期高點<input value="${e.high}" onchange="upd(${i},'high',this.value)"></label>
  <label class="muted">持股<input value="${e.shares}" onchange="upd(${i},'shares',this.value)"></label>
@@ -93,15 +131,20 @@ function settings(){
  document.getElementById("app").innerHTML=`<section class="card"><b>⚙️ 設定</b><div class="grid" style="margin-top:10px">
  <label class="muted">每月預算<input value="${state.budget}" onchange="state.budget=+this.value;save();settings()"></label>
  <label class="muted">全年現金流目標<input value="${state.target}" onchange="state.target=+this.value;save();settings()"></label>
- </div></section>${inputs}`;
+ <label class="muted">回撤高點天數<input value="${state.lookback}" onchange="state.lookback=+this.value;save();settings()"></label>
+ <label class="muted">FinMind Token（選填）<input value="${state.token||""}" placeholder="免費申請可提高額度" onchange="state.token=this.value.trim();save();settings()"></label>
+ </div>
+ <p class="muted" style="margin-top:10px">行情來源為 FinMind 台灣股市資料集，提供最近收盤價。免登入每小時有請求額度上限，到 <a href="https://finmindtrade.com" target="_blank">finmindtrade.com</a> 免費註冊取得 Token 可提高額度。手動輸入價格後，該 ETF 下次更新仍會嘗試自動抓取。</p></section>${inputs}`;
 }
-function upd(i,k,v){state.etfs[i][k]=+v;save();settings()}
-function show(x){
+function upd(i,k,v){state.etfs[i][k]=+v;state.etfs[i].src="manual";delete state.etfs[i].err;save();settings()}
+function render(){page==="radar"?radar():page==="money"?moneyPage():settings()}
+function show(x){page=x;
  document.querySelectorAll(".tabs button").forEach(b=>b.classList.remove("active"));
  document.getElementById("t-"+x).classList.add("active");
- x==="radar"?radar():x==="money"?moneyPage():settings()
+ render();
 }
 show("radar");
+refreshAll();
 if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
 </script>
 </body></html>

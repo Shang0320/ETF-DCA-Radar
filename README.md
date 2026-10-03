@@ -4,7 +4,9 @@
 
 ## 核心功能
 
-- ETF 觀察清單
+- ETF 觀察清單（自動行情 + 手動備援）
+- **即時行情 API**：FinMind 台灣股市資料（最近收盤價），開啟自動更新，可一鍵重新整理
+- **自動計算近期高點**：預設取近 60 個交易日最高價（可調）
 - 近期高點回撤計算
 - 🟢 -3%～-5%：小額買
 - 🟡 -5%～-10%：加碼
@@ -28,26 +30,19 @@
 | 00919 | 季配現金流 |
 | 00935 | 科技成長衛星 |
 
-> 本專案目前是「策略與資料管理工具」，價格資料需由使用者更新；不代表即時行情，也不是投資保證。
+> 行情來源為 [FinMind](https://finmindtrade.com) 開放資料（最近收盤價，非盤中即時）；抓取失敗時退回手動輸入。免登入有請求額度上限，可免費註冊取得 Token 填入設定頁提高額度。本工具為策略提示，不代表投資建議。
 
 ## GitHub Pages 部署
 
-1. 在 GitHub 建立新的 Repository，例如 `ETF-DCA-Radar`
-2. 將本資料夾內所有檔案上傳到 Repository 根目錄
-3. 進入 **Settings → Pages**
-4. Source 選 **Deploy from a branch**
-5. Branch 選 `main` / `root`
-6. 儲存後等待 GitHub Pages 建置
-7. 用 iPhone Safari 開啟 Pages 網址
-8. 選「分享 → 加入主畫面」
+1. **Settings → Pages**
+2. Source 選 **Deploy from a branch**
+3. Branch 選 `main` / `(root)`
+4. 儲存後等待建置，用 iPhone Safari 開啟 Pages 網址，選「分享 → 加入主畫面」
 
 ## 後續開發方向
 
-- 即時行情 API
-- 自動取得近期高點
 - ETF 配息紀錄與年化現金流
 - 加碼金額自動計算
 - 個人持倉成本與損益
 - 觸發條件通知
-- PWA 離線使用
 - 圖表化回撤與資金水位
